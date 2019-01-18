@@ -1,8 +1,13 @@
+
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "xRedisClient.h"
+
+using namespace xrc;
 
 #define CACHE_TYPE_1 1
 xRedisClient xClient;
@@ -166,7 +171,7 @@ void test_get()
         RedisDBIdx dbi(&xClient);
         bool bRet = dbi.CreateDBIndex(szKey, APHash, CACHE_TYPE_1);
         if (bRet) {
-            string strData;
+            std::string strData;
             if (xClient.get(dbi, szKey, strData)) {
                 printf("%s success data:%s \r\n", __PRETTY_FUNCTION__, strData.c_str());
             } else {
@@ -181,7 +186,7 @@ void test_get()
         RedisDBIdx dbi(&xClient);
         bool bRet = dbi.CreateDBIndex(szKey, APHash, CACHE_TYPE_1);
         if (bRet) {
-            string strData;
+            std::string strData;
             if (xClient.get(dbi, szKey, strData)) {
                 printf("%s error data:%s \r\n", __PRETTY_FUNCTION__, strData.c_str());
             } else {
@@ -197,20 +202,16 @@ void test_type()
 
     strcpy(szKey, "test");
     RedisDBIdx dbi(&xClient);
-    bool bRet = dbi.CreateDBIndex(szKey, APHash, CACHE_TYPE_1);
+    dbi.CreateDBIndex(szKey, APHash, CACHE_TYPE_1);
 
-
-    xClient.set(dbi, szKey, "wwwwwwwwwwwwwwwwwwwwwwwww");
-    string strData;
+    const std::string str = "wwwwwwwwwwwwwwwwwwwwwwwww";
+    xClient.set(dbi, szKey, str);
+    std::string strData;
     if (xClient.type(dbi, szKey, strData)) {
         printf("%s success data:%s \r\n", __PRETTY_FUNCTION__, strData.c_str());
     } else {
         printf("%s error [%s] \r\n", __PRETTY_FUNCTION__, dbi.GetErrInfo());
     }
-    
-
-
-
 
 }
 
@@ -223,7 +224,7 @@ void test_getrange()
     RedisDBIdx dbi(&xClient);
     bool bRet = dbi.CreateDBIndex(szKey, APHash, CACHE_TYPE_1);
     if (bRet) {
-        string strData;
+        std::string strData;
         if (xClient.getrange(dbi, szKey, 2, 6, strData)) {
             printf("%s success data:%s \r\n", __PRETTY_FUNCTION__, strData.c_str());
         } else {
@@ -397,7 +398,7 @@ void test_lpop()
 
     bool bRet = dbi.CreateDBIndex(szHKey, APHash, CACHE_TYPE_1);
     if (bRet) {
-        string strVal;
+        std::string strVal;
         if (xClient.lpop(dbi, szHKey, strVal)) {
             printf("%s success val: %s \r\n", __PRETTY_FUNCTION__, strVal.c_str());
         }
@@ -415,7 +416,7 @@ void test_rpop()
 
     bool bRet = dbi.CreateDBIndex(szHKey, APHash, CACHE_TYPE_1);
     if (bRet) {
-        string strVal;
+        std::string strVal;
         if (xClient.rpop(dbi, szHKey, strVal)) {
             printf("%s success val: %s \r\n", __PRETTY_FUNCTION__, strVal.c_str());
         }
@@ -473,6 +474,38 @@ void test_subscribe()
     xClient.FreexRedisContext(&ctx);
 }
 
+void test_scan()
+{
+    const char* pattern = "a*";
+    RedisDBIdx dbi(&xClient);
+    bool bRet = dbi.CreateDBIndex(0, CACHE_TYPE_1);
+    if (!bRet) {
+        return;
+    }
+
+    ArrayReply arrayReply;
+    int64_t cursor = 0;
+    xRedisContext ctx;
+    xClient.GetxRedisContext(dbi, &ctx);
+
+    do 
+    {
+        arrayReply.clear();
+        if (xClient.scan(dbi, cursor, pattern, 0, arrayReply, ctx)) {
+            printf("%"PRId64"\t\r\n", cursor);
+            ReplyData::iterator iter = arrayReply.begin();
+            for (; iter != arrayReply.end(); iter++) {
+                printf("\t\t%s\r\n",  (*iter).str.c_str());
+            }
+        } else {
+            printf("%s error [%s] \r\n", __PRETTY_FUNCTION__, dbi.GetErrInfo());
+            break;
+        }
+    } while (cursor != 0);
+
+    xClient.FreexRedisContext(&ctx);
+}
+
 int main(int argc, char **argv)
 {
     printf("%d %s\r\n", argc, argv[0]);
@@ -485,7 +518,7 @@ int main(int argc, char **argv)
         {2, "127.0.0.1", 6379, "", 2, 5, 0}
     };
 
-    xClient.ConnectRedisCache(RedisList1, 3, CACHE_TYPE_1);
+    xClient.ConnectRedisCache(RedisList1, sizeof(RedisList1) / sizeof(RedisNode),3, CACHE_TYPE_1);
 
     test_zadd("test:sorted:key", "sorted value hello xredis");
     test_set("test", "wwww");
@@ -510,7 +543,7 @@ int main(int argc, char **argv)
     test_rpop();
 
     test_type();
-
+    test_scan();
     //int n = 10;
     //while (n--) {
     //    xClient.KeepAlive();
